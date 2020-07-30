@@ -134,7 +134,7 @@ void setup() {
   };
   h = hms[0].toInt() % 60;
   m = hms[1].toInt() % 60;
-  s = hms[2].toInt() % 12;
+  s = hms[2].toInt() % 24;
 
   Serial.println("Ready");
   Serial.print("IP address: ");
@@ -147,7 +147,7 @@ void loop() {
   if (millis() > startTimer + interval) {
     s += interval / 1000.0;
     m += interval / 60000.0;
-    h += interval / 3600000.0;  
+    h += interval / 3600000.0;
     while (s >= 60.0) {
       s -= 60.0;
     }
@@ -164,12 +164,12 @@ void loop() {
       };
       h = hms[0].toInt() % 60;
       m = hms[1].toInt() % 60;
-      s = hms[2].toInt() % 12;
-      
-    }
-    while (h >= 12.0) {
+      s = hms[2].toInt() % 24;
 
-      h -= 12.0;
+    }
+    while (h >= 24.0) {
+
+      h -= 24.0;
     }
     strip.ClearTo(HsbColor(0.0, 0.0, 0.0));
     drawClock(h, m, s);
@@ -179,16 +179,20 @@ void loop() {
 }
 
 void drawClock(float h, float m, float s) {
+  float brightness = (h < 23.0 || h > 9.0) ? 1.0 : 0.1; // Dim the lights at night
+  HsbColor hr_col = HsbColor(0.0, 1.0, brightness);
+  HsbColor mn_col = HsbColor(0.4, 1.0, brightness);
+  HsbColor sc_col = HsbColor(0.7, 1.0, brightness);
 
   float s_frac = (s / 60.0);
-  float m_frac = (m / 60.0) + s_frac * 0.01666666; // 1 / 0.01666666 = 60.000024
-  float h_frac = (h / 12.0) + m_frac * 0.01666666;
+  float m_frac = (m / 60.0) + s_frac * 0.01666666; // Note that: 1/0.01666666 = 60.000024
+  float h_frac = (h / 24.0) + m_frac * 0.01666666;
   // Set the hour hand
   drawLine(
     5, 2.5,
-    5 + 2 * cos(h_frac * TWO_PI - HALF_PI),
-    2.5 + 2 * sin(h_frac * TWO_PI - HALF_PI),
-    HsbColor(0.0, 1.0, 1.0)
+    5 + 2.5 * cos(h_frac * TWO_PI - HALF_PI),
+    2.5 + 2.5 * sin(h_frac * TWO_PI - HALF_PI),
+    hr_col
   );
 
   // Set the minute hand
@@ -196,7 +200,7 @@ void drawClock(float h, float m, float s) {
     5, 2.5,                                   // x0, y0
     5 + 4 * cos(m_frac * TWO_PI - HALF_PI),   // x1
     2.5 + 4 * sin(m_frac * TWO_PI - HALF_PI), // y1
-    HsbColor(0.333, 1.0, 1.0)                   // color
+    mn_col                   // color
   );
 
   // Set the second hand
@@ -204,7 +208,7 @@ void drawClock(float h, float m, float s) {
     5, 2.5,
     5 + 6 * cos(s_frac * TWO_PI - HALF_PI),
     2.5 + 6 * sin(s_frac * TWO_PI - HALF_PI),
-    HsbColor(0.666, 1.0, 1.0)
+    sc_col
   );
 }
 
