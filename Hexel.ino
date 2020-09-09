@@ -44,14 +44,14 @@ const char* password =  "TMYb9RMVMUTN7";
 float h = 0.0;
 float m = 0.0;
 float s = 0.0;
-int interval = 10;
+int DAY_INTERVAL = 50;
+int NIGHT_INTERVAL = 10;
+int interval = DAY_INTERVAL;
 long startTimer = millis();
-//const float X_CENTER = 5.0;
-//const float Y_CENTER = 2.5;
-//const float ROTATION = 3 / 6 * PI;
 float X_CENTER = 5.0;
 float Y_CENTER = 2.5;
 float ROTATION = 3 / 6 * PI;
+long delta = 0;
 
 
 const int hex[11][11] = {
@@ -68,24 +68,38 @@ const int hex[11][11] = {
   { -1, -1, -1, -1, -1, 85, 86, 87, 88, 89, 90 }
 };
 
+const int centre_ring[7] = {35, 44, 56, 55, 46, 34, 45};
+
 StaticJsonDocument<600> doc;
 
 void setup() {
+  HsbColor col = HsbColor(0.3, 1.0, 0.1);
   pinMode(PIXEL_PIN, OUTPUT);
-
+  // Start up the Hexels
+  strip.Begin();
+  strip.Show();
+  strip.SetPixelColor(0, col);
+  strip.Show();
   Serial.begin(115200);
   while (!Serial); // wait for serial attach
-
+  strip.SetPixelColor(1, col);
+  strip.Show();
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
 
   // wait until the connection is resolved into a pass/fail
   while (WiFi.waitForConnectResult() != WL_CONNECTED) {
-    Serial.println("Connection Failed! Rebooting...");
-    delay(5000);
+    col = HsbColor(0.0, 1.0, 0.1);
+    strip.ClearTo(HsbColor(0.0, 1.0, 0.0));
+    for (int i = 0; i < 7; i++) {
+      strip.SetPixelColor(centre_ring[i], col);
+      strip.Show();
+      delay(500);
+    }
     ESP.restart();
   }
-
+  strip.SetPixelColor(2, col);
+  strip.Show();
   ArduinoOTA.setHostname("ESP32-Hexel");
   //  ArduinoOTA.setPassword("admin");
 
@@ -115,14 +129,8 @@ void setup() {
   });
 
   ArduinoOTA.begin();
-
-  // Start up the Hexels
-  strip.Begin();
+  strip.SetPixelColor(3, col);
   strip.Show();
-
-  // Check the hexels are all okay
-  run_test(10);
-
   // Get and set the time
 
   String hms_str = get_HMS_string();
@@ -132,9 +140,12 @@ void setup() {
     hms_str.substring(3, 5),
     hms_str.substring(6, 8)
   };
-  h = hms[0].toInt() % 60;
+  h = hms[0].toInt() % 24;
   m = hms[1].toInt() % 60;
-  s = hms[2].toInt() % 24;
+  s = hms[2].toInt() % 60;
+
+  strip.SetPixelColor(4, col);
+  strip.Show();
 
   Serial.println("Ready");
   Serial.print("IP address: ");
@@ -144,64 +155,47 @@ void setup() {
 
 void loop() {
   ArduinoOTA.handle();
-  if (millis() > startTimer + interval) {
-    s += interval / 1000.0;
-    m += interval / 60000.0;
-    h += interval / 3600000.0;
-    while (s >= 60.0) {
+  interval = (8.0 < h && h < 22.0) ? DAY_INTERVAL : NIGHT_INTERVAL;
+  if (millis() - startTimer > interval) {
+    delta = millis() - startTimer;
+    startTimer = millis();
+    s += delta / 1000.0;
+    //    m += delta / 60000.0;
+    //    h += delta / 3600000.0;
+    if (s >= 60.0) {
       s -= 60.0;
+      m += 1;
     }
-    while (m >= 60.0) {
-      m -= 60.0;
-
-      // double check that the time is correct
+    if (m >= 60.0) {
       String hms_str = get_HMS_string();
-      Serial.println(hms_str);
       String hms[3] = {
         hms_str.substring(0, 2),
         hms_str.substring(3, 5),
         hms_str.substring(6, 8)
       };
-      h = hms[0].toInt() % 60;
-      m = hms[1].toInt() % 60;
-      s = hms[2].toInt() % 24;
-
+      h = hms[0].toInt();
+      m = hms[1].toInt();
+      s = hms[2].toInt();
     }
-    while (h >= 24.0) {
-
-      h -= 24.0;
-    }
-    strip.ClearTo(HsbColor(0.0, 0.0, 0.0));
+    strip.ClearTo(HsbColor(0.0, 1.0, 0.0));
     drawClock(h, m, s);
+//    strip.SetPixelColor(s, HsbColor(0.6, 1.0, 0.05));
+//    strip.SetPixelColor(m, HsbColor(0.3, 1.0, 0.05));
+//    strip.SetPixelColor(h, HsbColor(0.0, 1.0, 0.05));
     strip.Show();
-    startTimer = millis();
   }
 }
 
 void drawClock(float h, float m, float s) {
-  float brightness = (h < 23.0 || h > 9.0) ? 1.0 : 0.1; // Dim the lights at night
-  HsbColor hr_col = HsbColor(0.0, 1.0, brightness);
-  HsbColor mn_col = HsbColor(0.4, 1.0, brightness);
-  HsbColor sc_col = HsbColor(0.7, 1.0, brightness);
+  float brightness = (8.0 < h && h < 22.0) ? 1.0 : 0.05; // Dim the lights at night
+  //  brightness = 1.0;
+  HsbColor hr_col = HsbColor(0.13, 1.0, brightness);
+  HsbColor mn_col = HsbColor(0.275, 1.0, brightness);
+  HsbColor sc_col = HsbColor(0.99, 1.0, brightness);
 
   float s_frac = (s / 60.0);
-  float m_frac = (m / 60.0) + s_frac * 0.01666666; // Note that: 1/0.01666666 = 60.000024
-  float h_frac = (h / 24.0) + m_frac * 0.01666666;
-  // Set the hour hand
-  drawLine(
-    5, 2.5,
-    5 + 2.5 * cos(h_frac * TWO_PI - HALF_PI),
-    2.5 + 2.5 * sin(h_frac * TWO_PI - HALF_PI),
-    hr_col
-  );
-
-  // Set the minute hand
-  drawLine(
-    5, 2.5,                                   // x0, y0
-    5 + 4 * cos(m_frac * TWO_PI - HALF_PI),   // x1
-    2.5 + 4 * sin(m_frac * TWO_PI - HALF_PI), // y1
-    mn_col                   // color
-  );
+  float m_frac = (m / 60.0) + s_frac / 60.0; 
+  float h_frac = ((((int) h) % 12) / 12.0) + m_frac / 60.0;
 
   // Set the second hand
   drawLine(
@@ -210,39 +204,57 @@ void drawClock(float h, float m, float s) {
     2.5 + 6 * sin(s_frac * TWO_PI - HALF_PI),
     sc_col
   );
+  // Set the minute hand
+  drawLine(
+    5, 2.5,                                   // x0, y0
+    5 + 4 * cos(m_frac * TWO_PI - HALF_PI),   // x1
+    2.5 + 4 * sin(m_frac * TWO_PI - HALF_PI), // y1
+    mn_col                   // color
+  );
+  // Set the hour hand
+  drawLine(
+    5, 2.5,
+    5 + 2.5 * cos(h_frac * TWO_PI - HALF_PI),
+    2.5 + 2.5 * sin(h_frac * TWO_PI - HALF_PI),
+    hr_col
+  );
+
+  strip.SetPixelColor(45, HsbColor(0.0, 0.0, brightness));
+
 }
 
-void drawPoint(float x, float y, HsbColor item_color) {
-  float s_val = s_from_xy(x, y);
-  float t_val = t_from_xy(x, y);
-
-  int s_arr[3] = { floor(round(s_val) - 0.01), round(s_val), ceil(round(s_val) + 0.01) };
-  int t_arr[3] = { floor(round(t_val) - 0.01), round(t_val), ceil(round(t_val) + 0.01) };
-
-  for (int i = 0; i < 3; i++) {
-    if (s_arr[i] < 11 && s_arr[i] > -1) {
-      for (int j = 0; j < 3; j++) {
-        if (t_arr[j] < 11 && t_arr[j] > -1) {
-          float dist = point_to_point(
-                         x_from_st(s_arr[i], t_arr[j]),
-                         y_from_st(s_arr[i], t_arr[j]),
-                         x,
-                         y
-                       );
-          float adjustment = adjustment_from_dist(dist);
-
-          HsbColor OG_color = strip.GetPixelColor(hex[s_arr[i]][t_arr[j]]);
-          HsbColor new_color = HsbColor(
-                                 item_color.H * adjustment + OG_color.H * (1 - adjustment),
-                                 item_color.S * adjustment + OG_color.S * (1 - adjustment),
-                                 item_color.B * adjustment + OG_color.B * (1 - adjustment)
-                               );
-          strip.SetPixelColor(hex[s_arr[i]][t_arr[j]], new_color);
-        }
-      }
-    }
-  }
-}
+//void drawPoint(float x, float y, HsbColor item_color) {
+//  float s_val = s_from_xy(x, y);
+//  float t_val = t_from_xy(x, y);
+//
+//  int s_arr[3] = { floor(round(s_val) - 0.01), round(s_val), ceil(round(s_val) + 0.01) };
+//  int t_arr[3] = { floor(round(t_val) - 0.01), round(t_val), ceil(round(t_val) + 0.01) };
+//
+//  for (int i = 0; i < 3; i++) {
+//    if (s_arr[i] < 11 && s_arr[i] > -1) {
+//      for (int j = 0; j < 3; j++) {
+//        if (t_arr[j] < 11 && t_arr[j] > -1) {
+//          float dist = point_to_point(
+//                         x_from_st(s_arr[i], t_arr[j]),
+//                         y_from_st(s_arr[i], t_arr[j]),
+//                         x,
+//                         y
+//                       );
+//          float adjustment = adjustment_from_dist(dist);
+//
+//          HsbColor OG_color = strip.GetPixelColor(hex[s_arr[i]][t_arr[j]]);
+//          HsbColor new_color = HsbColor(
+//                                 item_color.H * adjustment + OG_color.H * (1 - adjustment),
+//                                 1.0
+////                                 item_color.S * adjustment + OG_color.S * (1 - adjustment),
+//                                 item_color.B * adjustment + OG_color.B * (1 - adjustment)
+//                               );
+//          strip.SetPixelColor(hex[s_arr[i]][t_arr[j]], new_color);
+//        }
+//      }
+//    }
+//  }
+//}
 
 void drawLine(float x1, float y1, float x2, float y2, HsbColor item_color) {
   int s_start = floor(s_from_xy(min(x1, x2), min(y1, y2))) - 1;
@@ -262,15 +274,23 @@ void drawLine(float x1, float y1, float x2, float y2, HsbColor item_color) {
       // now color the pixel at hex[s][t] according to the closest point of the line
       float dist = line_to_point(x1, y1, x2, y2, x_from_st(s, t), y_from_st(s, t));
 
-      if (dist < 2.0 && s >= 0 && s < 11 && t >= 0 && t < 11) {
-        float adjustment = adjustment_from_dist(dist);
-
+      float adjustment = adjustment_from_dist(dist);
+      if (item_color.B * adjustment > 0.01 && s >= 0 && s < 11 && t >= 0 && t < 11) {
         HsbColor OG_color = strip.GetPixelColor(hex[s][t]);
-        HsbColor new_color = HsbColor(
-                               item_color.H * adjustment * item_color.H + OG_color.H * (1 - adjustment) * OG_color.B,
-                               item_color.S * adjustment + OG_color.S * (1 - adjustment),
-                               item_color.B * adjustment + OG_color.B * (1 - adjustment)
-                             );
+        HsbColor new_color;
+        if (OG_color.B < 0.01) {
+          new_color = HsbColor(
+                        item_color.H,
+                        item_color.S,
+                        item_color.B * adjustment
+                      );
+        } else {
+          new_color = HsbColor(
+                        item_color.H * adjustment + OG_color.H * (1 - adjustment),
+                        item_color.S * adjustment + OG_color.S * (1 - adjustment),
+                        item_color.B * adjustment + OG_color.B * (1 - adjustment)
+                      );
+        }
         strip.SetPixelColor(hex[s][t], new_color);
       }
     }
@@ -447,7 +467,7 @@ void run_test(int DELAY) {
   Serial.println("=============LED TEST START=============");
   Serial.println("Testing individual LEDs with WHITE");
   for (int i = 0; i < PIXEL_COUNT; i++) {
-    strip.ClearTo(HslColor(0, 0, 0));
+    strip.ClearTo(HslColor(0, 1, 0));
     strip.SetPixelColor(i, HslColor(0.5, 0.5, 0.5));
     strip.Show();
     delay(DELAY);
@@ -455,7 +475,7 @@ void run_test(int DELAY) {
 
   Serial.println();
   Serial.print("Testing SAT 0-100: ");
-  strip.ClearTo(HslColor(0, 0, 0));;
+  strip.ClearTo(HslColor(0, 1, 0));;
   for (float s = 0.0; s < 1.0f; s += 0.01) {
     strip.ClearTo(HslColor(0.5, s, 0.5));
     strip.Show();
@@ -468,7 +488,7 @@ void run_test(int DELAY) {
 
   Serial.println();
   Serial.print("Testing VAL 0-100: ");
-  strip.ClearTo(HslColor(0, 0, 0));;
+  strip.ClearTo(HslColor(0, 1 , 0));;
   for (float l = 0.0; l < 1.0f; l += 0.01) {
     strip.ClearTo(HslColor(0.5, 0.5, l));
     strip.Show();
@@ -480,9 +500,9 @@ void run_test(int DELAY) {
   }
 
   Serial.print("Testing HUE 0-360: ");
-  strip.ClearTo(HslColor(0, 0, 0));;
+  strip.ClearTo(HslColor(0, 1, 0));;
   for (float h = 0.0; h < 1.0f; h += 0.01) {
-    strip.ClearTo(HslColor(h, 0.5, 0.5));
+    strip.ClearTo(HslColor(h, 1, 0.5));
     strip.Show();
     if (((int) h * 100) % 10 == 0) {
       Serial.print(h);
@@ -491,7 +511,7 @@ void run_test(int DELAY) {
     delay(DELAY / 3);
   }
 
-  strip.ClearTo(HslColor(0, 0, 0));;
+  strip.ClearTo(HslColor(0, 1, 0));;
   Serial.println();
   Serial.println("=============LED TEST END=============");
 
