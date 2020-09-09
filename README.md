@@ -1,7 +1,8 @@
 # Hexels
 Hexels is named after the hexagonal pixels that make up an individually, addressable LED matrix in the shape of a 6-pixels-per-side hexagon.
-!(image)[]
-!(gif)[]
+!()[clock.gif]
+!()[line.gif]
+!()[sheet.gif]
 Hexels is written in C++, uploaded OTA to an ESP32, and the result of many frustrations with matrix transformations / color interpolation. For now it is hanging
 in my bedroom as a wall clock, although there are many possible applications and improvements that I would like to make:
 
