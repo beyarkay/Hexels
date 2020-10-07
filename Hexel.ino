@@ -39,8 +39,8 @@
 #define PIXEL_COUNT 91
 NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod> strip(PIXEL_COUNT, PIXEL_PIN);
 
-const char* ssid = "ZyXEL_D588";
-const char* password =  "TMYb9RMVMUTN7";
+const char* ssid = "MOSSAD";
+const char* password =  "28Woodlands";
 float h = 0.0;
 float m = 0.0;
 float s = 0.0;
